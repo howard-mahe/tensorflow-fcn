@@ -10,9 +10,6 @@ import sys
 import numpy as np
 import tensorflow as tf
 
-VGG_MEAN = [103.939, 116.779, 123.68]
-
-
 class FCN16VGG:
 
     def __init__(self, vgg16_npy_path=None):
@@ -34,16 +31,18 @@ class FCN16VGG:
         self.wd = 5e-4
         print("npy file loaded")
 
-    def build(self, rgb, train=False, num_classes=20, random_init_fc8=False,
+    def build(self, data, data_type, keepProbability, num_classes=20, random_init_fc8=False,
               debug=False):
         """
         Build the VGG model using loaded weights
         Parameters
         ----------
-        rgb: image batch tensor
-            Image in rgb shap. Scaled to Intervall [0, 255]
-        train: bool
-            Whether to build train or inference graph
+        data: image batch tensor
+            Image in bgr or bgrd shap. Scaled to Intervall [0, 255]
+        data_type: string
+            BGR or BGR-D
+        keepProbability: float
+            Probability of the dropout layers to distinguish train & test phase
         num_classes: int
             How many classes should be predicted (by fc8)
         random_init_fc8 : bool
@@ -52,25 +51,14 @@ class FCN16VGG:
         debug: bool
             Whether to print additional Debug Information.
         """
-        # Convert RGB to BGR
 
-        with tf.name_scope('Processing'):
-            # rgb = tf.image.convert_image_dtype(rgb, tf.float32)
-            red, green, blue = tf.split(rgb, 3, 3)
-            # assert red.get_shape().as_list()[1:] == [224, 224, 1]
-            # assert green.get_shape().as_list()[1:] == [224, 224, 1]
-            # assert blue.get_shape().as_list()[1:] == [224, 224, 1]
-            bgr = tf.concat([
-                blue - VGG_MEAN[0],
-                green - VGG_MEAN[1],
-                red - VGG_MEAN[2]], axis=3)
-
-            if debug:
-                bgr = tf.Print(bgr, [tf.shape(bgr)],
-                               message='Shape of input image: ',
-                               summarize=4, first_n=1)
-
-        self.conv1_1 = self._conv_layer(bgr, "conv1_1")
+        if data_type == 'BGR':
+            self.conv1_1 = self._conv_layer(data, "conv1_1")
+        elif data_type == 'BGR-D':
+            self.conv1_1 = self._conv_layer_bgrd(data, "conv1_1")
+        else:
+            raise ValueError('input_type not supported')
+        
         self.conv1_2 = self._conv_layer(self.conv1_1, "conv1_2")
         self.pool1 = self._max_pool(self.conv1_2, 'pool1', debug)
 
@@ -90,18 +78,14 @@ class FCN16VGG:
 
         self.conv5_1 = self._conv_layer(self.pool4, "conv5_1")
         self.conv5_2 = self._conv_layer(self.conv5_1, "conv5_2")
-
         self.conv5_3 = self._conv_layer(self.conv5_2, "conv5_3")
         self.pool5 = self._max_pool(self.conv5_3, 'pool5', debug)
 
         self.fc6 = self._fc_layer(self.pool5, "fc6")
-
-        if train:
-            self.fc6 = tf.nn.dropout(self.fc6, 0.5)
+        self.fc6 = tf.nn.dropout(self.fc6, keepProbability)
 
         self.fc7 = self._fc_layer(self.fc6, "fc7")
-        if train:
-            self.fc7 = tf.nn.dropout(self.fc7, 0.5)
+        self.fc7 = tf.nn.dropout(self.fc7, keepProbability)
 
         if random_init_fc8:
             self.score_fr = self._score_layer(self.fc7, "score_fr",

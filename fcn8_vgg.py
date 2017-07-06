@@ -10,9 +10,6 @@ import sys
 import numpy as np
 import tensorflow as tf
 
-VGG_MEAN = [103.939, 116.779, 123.68]
-
-
 class FCN8VGG:
 
     def __init__(self, vgg16_npy_path=None):
@@ -34,16 +31,18 @@ class FCN8VGG:
         self.wd = 5e-4
         print("npy file loaded")
 
-    def build(self, rgb, train=False, num_classes=20, random_init_fc8=False,
+    def build(self, data, data_type, keepProbability, num_classes=20, random_init_fc8=False,
               debug=False):
         """
         Build the VGG model using loaded weights
         Parameters
         ----------
-        rgb: image batch tensor
-            Image in rgb shap. Scaled to Intervall [0, 255]
-        train: bool
-            Whether to build train or inference graph
+        data: image batch tensor
+            Image in bgr or bgrd shap. Scaled to Intervall [0, 255]
+        data_type: string
+            BGR or BGR-D
+        keepProbability: float
+            Probability of the dropout layers to distinguish train & test phase
         num_classes: int
             How many classes should be predicted (by fc8)
         random_init_fc8 : bool
@@ -52,26 +51,14 @@ class FCN8VGG:
         debug: bool
             Whether to print additional Debug Information.
         """
-        # Convert RGB to BGR
 
-        with tf.name_scope('Processing'):
-
-            red, green, blue = tf.split(rgb, 3, 3)
-            # assert red.get_shape().as_list()[1:] == [224, 224, 1]
-            # assert green.get_shape().as_list()[1:] == [224, 224, 1]
-            # assert blue.get_shape().as_list()[1:] == [224, 224, 1]
-            bgr = tf.concat([
-                blue - VGG_MEAN[0],
-                green - VGG_MEAN[1],
-                red - VGG_MEAN[2],
-            ], 3)
-
-            if debug:
-                bgr = tf.Print(bgr, [tf.shape(bgr)],
-                               message='Shape of input image: ',
-                               summarize=4, first_n=1)
-
-        self.conv1_1 = self._conv_layer(bgr, "conv1_1")
+        if data_type == 'BGR':
+            self.conv1_1 = self._conv_layer(data, "conv1_1")
+        elif data_type == 'BGR-D':
+            self.conv1_1 = self._conv_layer_bgrd(data, "conv1_1")
+        else:
+            raise ValueError('input_type not supported')
+        
         self.conv1_2 = self._conv_layer(self.conv1_1, "conv1_2")
         self.pool1 = self._max_pool(self.conv1_2, 'pool1', debug)
 
@@ -95,13 +82,10 @@ class FCN8VGG:
         self.pool5 = self._max_pool(self.conv5_3, 'pool5', debug)
 
         self.fc6 = self._fc_layer(self.pool5, "fc6")
-
-        if train:
-            self.fc6 = tf.nn.dropout(self.fc6, 0.5)
+        self.fc6 = tf.nn.dropout(self.fc6, keepProbability)
 
         self.fc7 = self._fc_layer(self.fc6, "fc7")
-        if train:
-            self.fc7 = tf.nn.dropout(self.fc7, 0.5)
+        self.fc7 = tf.nn.dropout(self.fc7, keepProbability)
 
         if random_init_fc8:
             self.score_fr = self._score_layer(self.fc7, "score_fr",
@@ -131,13 +115,13 @@ class FCN8VGG:
                                              num_classes=num_classes)
         self.fuse_pool3 = tf.add(self.upscore4, self.score_pool3)
 
-        self.upscore32 = self._upscore_layer(self.fuse_pool3,
-                                             shape=tf.shape(bgr),
+        self.upscore = self._upscore_layer(self.fuse_pool3,
+                                             shape=tf.shape(data),
                                              num_classes=num_classes,
-                                             debug=debug, name='upscore32',
+                                             debug=debug, name='upscore',
                                              ksize=16, stride=8)
-
-        self.pred_up = tf.argmax(self.upscore32, dimension=3)
+    
+        self.pred_up = tf.argmax(self.upscore, dimension=3)
 
     def _max_pool(self, bottom, name, debug):
         pool = tf.nn.max_pool(bottom, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -148,6 +132,19 @@ class FCN8VGG:
                             message='Shape of %s' % name,
                             summarize=4, first_n=1)
         return pool
+
+    def _conv_layer_bgrd(self, bottom, name):
+        with tf.variable_scope(name) as scope:
+            filt = self.get_conv_filter_bgrd(name)
+            conv = tf.nn.conv2d(bottom, filt, [1, 1, 1, 1], padding='SAME')
+
+            conv_biases = self.get_bias(name)
+            bias = tf.nn.bias_add(conv, conv_biases)
+
+            relu = tf.nn.relu(bias)
+            # Add summary to Tensorboard
+            #_activation_summary(relu)
+            return relu
 
     def _conv_layer(self, bottom, name):
         with tf.variable_scope(name) as scope:
@@ -275,6 +272,24 @@ class FCN8VGG:
                                        dtype=tf.float32)
         var = tf.get_variable(name="up_filter", initializer=init,
                               shape=weights.shape)
+        return var
+
+    def get_conv_filter_bgrd(self, name):
+        shape = (3, 3, 4, 64)
+        filt_value = np.zeros(shape=shape)
+        filt_value[:,:,:3,:] = self.data_dict[name][0]             # BGR
+        filt_value[:,:,3,:]  = np.mean(self.data_dict[name][0], 2) # D
+
+        init = tf.constant_initializer(value=filt_value, dtype=tf.float32)
+        print('Layer name: %s' % name)
+        print('Layer shape: %s' % str(shape))
+        var = tf.get_variable(name="filter", initializer=init, shape=shape)
+        if not tf.get_variable_scope().reuse:
+            weight_decay = tf.multiply(tf.nn.l2_loss(var), self.wd,
+                                       name='weight_loss')
+            tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES,
+                                 weight_decay)
+        #_variable_summaries(var)
         return var
 
     def get_conv_filter(self, name):
