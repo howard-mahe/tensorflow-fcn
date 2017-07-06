@@ -1,3 +1,8 @@
+# Upgrade to tensorflow-fcn
+- implement a training script for NYUDv2 dataset (40 class challenge)
+- deals with both RGB and RGB-D input images
+- modify fcn8\_vgg, fcn16\_vgg, fcn32\_vgg to handle dropout layer at test time using a tf.placeholder representing the dropout probability
+
 # tensorflow-fcn
 This is a one file Tensorflow implementation of [Fully Convolutional Networks](http://arxiv.org/abs/1411.4038) in Tensorflow. The code can easily be integrated in your semantic segmentation pipeline. The network can be applied directly or finetuned to perform semantic segmentation using tensorflow training code.
 
