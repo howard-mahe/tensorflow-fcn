@@ -140,7 +140,7 @@ class FCN32VGG:
 
             relu = tf.nn.relu(bias)
             # Add summary to Tensorboard
-            _activation_summary(relu)
+            #_activation_summary(relu)
             return relu
 
     def _fc_layer(self, bottom, name, num_classes=None,
@@ -162,7 +162,7 @@ class FCN32VGG:
 
             if relu:
                 bias = tf.nn.relu(bias)
-            _activation_summary(bias)
+            #_activation_summary(bias)
 
             if debug:
                 bias = tf.Print(bias, [tf.shape(bias)],
@@ -186,7 +186,7 @@ class FCN32VGG:
             conv_biases = self._bias_variable([num_classes], constant=0.0)
             bias = tf.nn.bias_add(conv, conv_biases)
 
-            _activation_summary(bias)
+            #_activation_summary(bias)
 
             return bias
 
@@ -224,7 +224,7 @@ class FCN32VGG:
                                   message='Shape of %s' % name,
                                   summarize=4, first_n=1)
 
-        _activation_summary(deconv)
+        #_activation_summary(deconv)
         return deconv
 
     def get_deconv_filter(self, f_shape):

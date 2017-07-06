@@ -159,7 +159,7 @@ class FCN8VGG:
 
             relu = tf.nn.relu(bias)
             # Add summary to Tensorboard
-            _activation_summary(relu)
+            #_activation_summary(relu)
             return relu
 
     def _fc_layer(self, bottom, name, num_classes=None,
@@ -184,7 +184,7 @@ class FCN8VGG:
 
             if relu:
                 bias = tf.nn.relu(bias)
-            _activation_summary(bias)
+            #_activation_summary(bias)
 
             if debug:
                 bias = tf.Print(bias, [tf.shape(bias)],
@@ -215,7 +215,7 @@ class FCN8VGG:
             conv_biases = self._bias_variable([num_classes], constant=0.0)
             bias = tf.nn.bias_add(conv, conv_biases)
 
-            _activation_summary(bias)
+            #_activation_summary(bias)
 
             return bias
 
@@ -254,7 +254,7 @@ class FCN8VGG:
                                   message='Shape of %s' % name,
                                   summarize=4, first_n=1)
 
-        _activation_summary(deconv)
+        #_activation_summary(deconv)
         return deconv
 
     def get_deconv_filter(self, f_shape):
@@ -289,7 +289,7 @@ class FCN8VGG:
                                        name='weight_loss')
             tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES,
                                  weight_decay)
-        _variable_summaries(var)
+        #_variable_summaries(var)
         return var
 
     def get_bias(self, name, num_classes=None):
@@ -302,7 +302,7 @@ class FCN8VGG:
         init = tf.constant_initializer(value=bias_wights,
                                        dtype=tf.float32)
         var = tf.get_variable(name="biases", initializer=init, shape=shape)
-        _variable_summaries(var)
+        #_variable_summaries(var)
         return var
 
     def get_fc_weight(self, name):
@@ -315,7 +315,7 @@ class FCN8VGG:
                                        name='weight_loss')
             tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES,
                                  weight_decay)
-        _variable_summaries(var)
+        #_variable_summaries(var)
         return var
 
     def _bias_reshape(self, bweight, num_orig, num_new):
@@ -396,7 +396,7 @@ class FCN8VGG:
             weight_decay = tf.multiply(
                 tf.nn.l2_loss(var), wd, name='weight_loss')
             tf.add_to_collection(collection_name, weight_decay)
-        _variable_summaries(var)
+        #_variable_summaries(var)
         return var
 
     def _add_wd_and_summary(self, var, wd, collection_name=None):
@@ -406,14 +406,14 @@ class FCN8VGG:
             weight_decay = tf.multiply(
                 tf.nn.l2_loss(var), wd, name='weight_loss')
             tf.add_to_collection(collection_name, weight_decay)
-        _variable_summaries(var)
+        #_variable_summaries(var)
         return var
 
     def _bias_variable(self, shape, constant=0.0):
         initializer = tf.constant_initializer(constant)
         var = tf.get_variable(name='biases', shape=shape,
                               initializer=initializer)
-        _variable_summaries(var)
+        #_variable_summaries(var)
         return var
 
     def get_fc_weight_reshape(self, name, shape, num_classes=None):
