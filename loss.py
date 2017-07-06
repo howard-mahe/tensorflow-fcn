@@ -33,18 +33,26 @@ def loss(logits, labels, num_classes, head=None):
         logits = logits
         labels = tf.to_float(tf.reshape(labels, (-1, num_classes)))
 
+        # prevent 'tf.losses.softmax_cross_entropy' from causing NaN issue
         softmax = tf.nn.softmax(logits) + epsilon
 
         if head is not None:
-            cross_entropy = -tf.reduce_sum(tf.mul(labels * tf.log(softmax),
+            cross_entropy = -tf.reduce_sum(tf.multiply(labels * tf.log(softmax),
                                            head), reduction_indices=[1])
         else:
             cross_entropy = -tf.reduce_sum(
                 labels * tf.log(softmax), reduction_indices=[1])
 
-        cross_entropy_mean = tf.reduce_mean(cross_entropy,
-                                            name='xentropy_mean')
-        tf.add_to_collection('losses', cross_entropy_mean)
+        # Non normalized loss
+        cross_entropy_sum = tf.reduce_sum(cross_entropy, name='xentropy_sum')
+        tf.add_to_collection('losses', cross_entropy_sum)
+        
+        # Normalized loss
+#        cross_entropy_mean = tf.reduce_mean(cross_entropy, name='xentropy_mean')
+#        tf.add_to_collection('losses', cross_entropy_mean)
 
-        loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
-    return loss
+        # if multiple loss (e.g. auxiliary loss, multi-task learning...)
+#        loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+#    return sum
+
+    return cross_entropy_sum
